@@ -2,10 +2,10 @@
 
 ## Completed ✅
 
-- [x] AWS
-- [x] Amazon
+- [x] AWS S3 Bucket
+- [x] AWS Certificate and DNS Entry
 
 ## Pending 🏗️
 
-- [ ] Amazon
-- [ ] AWS
+- [ ] CloudFront Distribution
+- [ ] Link CloudFront Distribution to Route53.

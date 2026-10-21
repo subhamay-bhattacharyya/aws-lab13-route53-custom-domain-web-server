@@ -18,14 +18,20 @@ Metadata:
           default: "Bucket Configuration"
         Parameters:
           - BucketBaseName
-      # - Label:
-      #     default: "Encryption Configuration"
-      #   Parameters:
-      #     - KmsKey
+      - Label:
+          default: "Encryption Configuration"
+        Parameters:
+          - KmsKey
       - Label:
           default: "Advanced Configuration"
         Parameters:
           - CiSuffix
+      - Label:
+          default: "Certificate and DNS Configuration"
+        Parameters:
+          - HostedZoneId
+          - DomainName
+          - DnsTargetValue
     ParameterLabels:
       NestedStacksS3BucketName:
         default: "S3 Bucket Name"
@@ -37,8 +43,14 @@ Metadata:
         default: "Environment"
       CiSuffix:
         default: "CI Suffix"
-      # KmsKey:
-      #   default: "KMS Key (ARN / Alias)"
+      KmsKey:
+        default: "KMS Key (ARN / Alias)"
+      HostedZoneId:
+        default: "Hosted Zone ID"
+      DomainName:
+        default: "Domain Name"
+      DnsTargetValue:
+        default: "DNS Target Value"
 
 Parameters:
   NestedStacksS3BucketName:
@@ -68,12 +80,12 @@ Parameters:
     ConstraintDescription: "Bucket base name must be 1-20 characters and can only contain lowercase letters, numbers, hyphens, and dots"
     Description: Base name for the S3 bucket (account ID, environment, and region will be appended)
 
-  # KmsKey:
-  #   Type: String
-  #   Default: "SB-KMS"
-  #   AllowedPattern: "^(alias/[a-zA-Z0-9_-]+|arn:aws:kms:[a-z0-9-]+:[0-9]+:key/[a-zA-Z0-9-]+|[a-zA-Z0-9_-]+)?$"
-  #   ConstraintDescription: "KMS Key can be a key name (e.g., my-key, auto-converted to alias/my-key), a KMS key alias (e.g., alias/my-key), or a full KMS key ARN (e.g., arn:aws:kms:region:account:key/key-id), or leave empty for no KMS encryption"
-  #   Description: "Optional KMS Key for S3 bucket encryption. Accepts: key name (my-key), alias (alias/my-key), or ARN (arn:aws:kms:region:account:key/key-id). Plain key names are auto-converted to aliases."
+  KmsKey:
+    Type: String
+    Default: "SB-KMS"
+    AllowedPattern: "^(alias/[a-zA-Z0-9_-]+|arn:aws:kms:[a-z0-9-]+:[0-9]+:key/[a-zA-Z0-9-]+|[a-zA-Z0-9_-]+)?$"
+    ConstraintDescription: "KMS Key can be a key name (e.g., my-key, auto-converted to alias/my-key), a KMS key alias (e.g., alias/my-key), or a full KMS key ARN (e.g., arn:aws:kms:region:account:key/key-id), or leave empty for no KMS encryption"
+    Description: "Optional KMS Key for S3 bucket encryption. Accepts: key name (my-key), alias (alias/my-key), or ARN (arn:aws:kms:region:account:key/key-id). Plain key names are auto-converted to aliases."
 
   Environment:
     Type: String
@@ -84,6 +96,25 @@ Parameters:
     Type: String
     Default: ""
     Description: "Optional CI suffix to append to the bucket name"
+
+  HostedZoneId:
+    Type: String
+    Default: "Z049224526CG9TNO0JVDY"
+    AllowedPattern: "^Z[A-Z0-9]+$"
+    ConstraintDescription: "Hosted zone ID must start with Z followed by letters and digits (e.g., Z0123456789ABCDEF)"
+    Description: "ID of the existing Route 53 public hosted zone that receives the certificate validation and DNS record"
+
+  DomainName:
+    Type: String
+    Default: "spacemission.aws-projects.online"
+    AllowedPattern: "^(\\*\\.)?([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\\.)+[a-zA-Z]{2,}$"
+    ConstraintDescription: "Must be a valid domain name (e.g., app.example.com). A leading *. is allowed for wildcard certificates."
+    Description: "Fully qualified domain name for the ACM certificate and Route 53 record (e.g., app.example.com)"
+
+  DnsTargetValue:
+    Type: String
+    Default: "aws-projects.online"
+    Description: "Target for the Route 53 record. A hostname for CNAME (e.g., the CloudFront domain or S3 website endpoint)"
 
 Resources:
   S3BucketNestedStack:
@@ -102,7 +133,7 @@ Resources:
       Parameters:
         ProjectName: !Ref ProjectName
         BucketBaseName: !Ref BucketBaseName
-        # KmsKey: !Ref KmsKey
+        KmsKey: !Ref KmsKey
         EnableBucketKey: "true"
         Environment: !Ref Environment
         CiSuffix: !Ref CiSuffix
@@ -112,6 +143,32 @@ Resources:
           Value: RootStack
         - Key: NestedStackPurpose
           Value: S3BucketCreation
+
+  AcmDnsNestedStack:
+    Type: AWS::CloudFormation::Stack
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: "Invokes the nested ACM certificate CloudFormation template to create a DNS-validated public certificate and the Route 53 record that points DomainName at DnsTargetValue"
+        must:
+          - "Nested template must be accessible at the specified S3 location"
+          - "IAM principal must have s3:GetObject permission on the template S3 bucket"
+          - "Route 53 hosted zone referenced by the nested template must already exist"
+    Properties:
+      TemplateURL: !Sub https://${NestedStacksS3BucketName}.s3.us-east-1.amazonaws.com/cfn-aws-nested-acm-dns/template.yaml
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        CiSuffix: !Ref CiSuffix
+        HostedZoneId: !Ref HostedZoneId
+        DomainName: !Ref DomainName
+        DnsTargetValue: !Ref DnsTargetValue
+      Tags:
+        - Key: ManagedBy
+          Value: RootStack
+        - Key: NestedStackPurpose
+          Value: CertificateDnsCreation
 
 Outputs:
   NestedStackId:
@@ -129,3 +186,11 @@ Outputs:
   S3BucketWebsiteEndpoint:
     Description: "Website endpoint of the S3 bucket created by the nested stack"
     Value: !GetAtt S3BucketNestedStack.Outputs.S3BucketWebsiteEndpoint
+
+  AcmCertificateArn:
+    Description: "ARN of the ACM certificate created by the nested ACM stack"
+    Value: !GetAtt AcmDnsNestedStack.Outputs.CertificateArn
+
+  AcmDnsRecordName:
+    Description: "Route 53 record created by the nested ACM stack"
+    Value: !GetAtt AcmDnsNestedStack.Outputs.DnsRecordName
