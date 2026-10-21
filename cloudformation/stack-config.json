@@ -1,5 +1,5 @@
 {
-  "stackName": "aws-lab13-route53-custom-domain-web-server-stack",
+  "stackName": "aws-netwk-lab13-route53-custom-domain-web-server-stack",
   "templateFile": "cloudformation/template.yaml",
   "parameterFile": "cloudformation/parameters.json"
 }

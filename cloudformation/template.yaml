@@ -18,11 +18,10 @@ Metadata:
           default: "Bucket Configuration"
         Parameters:
           - BucketBaseName
-      - Label:
-          default: "Encryption Configuration"
-        Parameters:
-          - KmsKey
-          - EnableBucketKey
+      # - Label:
+      #     default: "Encryption Configuration"
+      #   Parameters:
+      #     - KmsKey
       - Label:
           default: "Advanced Configuration"
         Parameters:
@@ -38,10 +37,8 @@ Metadata:
         default: "Environment"
       CiSuffix:
         default: "CI Suffix"
-      KmsKey:
-        default: "KMS Key (ARN / Alias)"
-      EnableBucketKey:
-        default: "Enable S3 Bucket Key"
+      # KmsKey:
+      #   default: "KMS Key (ARN / Alias)"
 
 Parameters:
   NestedStacksS3BucketName:
@@ -55,7 +52,7 @@ Parameters:
 
   ProjectName:
     Type: String
-    Default: "ztc-etl"
+    Default: "netwk-lab13"
     Description: "Project name to use as a bucket prefix"
     MinLength: 1
     MaxLength: 20
@@ -64,27 +61,19 @@ Parameters:
 
   BucketBaseName:
     Type: String
-    Default: "csv-raw-data"
+    Default: "web-server"
     MinLength: 1
     MaxLength: 20
     AllowedPattern: "^[a-z0-9.-]+$"
     ConstraintDescription: "Bucket base name must be 1-20 characters and can only contain lowercase letters, numbers, hyphens, and dots"
     Description: Base name for the S3 bucket (account ID, environment, and region will be appended)
 
-  KmsKey:
-    Type: String
-    Default: ""
-    AllowedPattern: "^(alias/[a-zA-Z0-9_-]+|arn:aws:kms:[a-z0-9-]+:[0-9]+:key/[a-zA-Z0-9-]+|[a-zA-Z0-9_-]+)?$"
-    ConstraintDescription: "KMS Key can be a key name (e.g., my-key, auto-converted to alias/my-key), a KMS key alias (e.g., alias/my-key), or a full KMS key ARN (e.g., arn:aws:kms:region:account:key/key-id), or leave empty for no KMS encryption"
-    Description: "Optional KMS Key for S3 bucket encryption. Accepts: key name (my-key), alias (alias/my-key), or ARN (arn:aws:kms:region:account:key/key-id). Plain key names are auto-converted to aliases."
-
-  EnableBucketKey:
-    Type: String
-    Default: "false"
-    AllowedValues:
-      - "true"
-      - "false"
-    Description: "Enable S3 Bucket Key for KMS encryption cost optimization (only applicable when KmsKey is provided)"
+  # KmsKey:
+  #   Type: String
+  #   Default: "SB-KMS"
+  #   AllowedPattern: "^(alias/[a-zA-Z0-9_-]+|arn:aws:kms:[a-z0-9-]+:[0-9]+:key/[a-zA-Z0-9-]+|[a-zA-Z0-9_-]+)?$"
+  #   ConstraintDescription: "KMS Key can be a key name (e.g., my-key, auto-converted to alias/my-key), a KMS key alias (e.g., alias/my-key), or a full KMS key ARN (e.g., arn:aws:kms:region:account:key/key-id), or leave empty for no KMS encryption"
+  #   Description: "Optional KMS Key for S3 bucket encryption. Accepts: key name (my-key), alias (alias/my-key), or ARN (arn:aws:kms:region:account:key/key-id). Plain key names are auto-converted to aliases."
 
   Environment:
     Type: String
@@ -113,10 +102,11 @@ Resources:
       Parameters:
         ProjectName: !Ref ProjectName
         BucketBaseName: !Ref BucketBaseName
-        KmsKey: !Ref KmsKey
-        EnableBucketKey: !Ref EnableBucketKey
+        # KmsKey: !Ref KmsKey
+        EnableBucketKey: "true"
         Environment: !Ref Environment
         CiSuffix: !Ref CiSuffix
+        WebsiteConfiguration: "true"
       Tags:
         - Key: ManagedBy
           Value: RootStack
@@ -133,5 +123,9 @@ Outputs:
     Value: !GetAtt S3BucketNestedStack.Outputs.S3BucketName
 
   S3BucketArn:
-    Description: "ARN of the S3 bucket created by the nested stack"
-    Value: !GetAtt S3BucketNestedStack.Outputs.S3BucketArn
+      Description: "ARN of the S3 bucket created by the nested stack"
+      Value: !GetAtt S3BucketNestedStack.Outputs.S3BucketArn
+
+  S3BucketWebsiteEndpoint:
+    Description: "Website endpoint of the S3 bucket created by the nested stack"
+    Value: !GetAtt S3BucketNestedStack.Outputs.S3BucketWebsiteEndpoint
